@@ -25,7 +25,7 @@ data "aws_ami" "this" {
 
 resource "aws_key_pair" "this" {
   key_name   = "aws-grafana-lab-key"
-  public_key = file("~/.ssh/id_rsa.pub")
+  public_key = file("~/.ssh/id_ed25519.pub")
 
   tags = {
     Name = "mate-aws-grafana-lab"
@@ -34,7 +34,7 @@ resource "aws_key_pair" "this" {
 
 resource "aws_instance" "this" {
   ami           = data.aws_ami.this.id
-  instance_type = "t2.micro"
+  instance_type = "t3.micro"
 
   associate_public_ip_address = true
   subnet_id     = var.subnet_id
@@ -47,6 +47,7 @@ resource "aws_instance" "this" {
   }
 
   user_data = file("./install-grafana.sh")
+  iam_instance_profile = aws_iam_instance_profile.grafana_profile.name
 }
 
 
@@ -56,8 +57,32 @@ resource "aws_instance" "this" {
 
 # 1 - create policy 
 
+resource "aws_iam_policy" "grafana" {
+  name   = "grafana-policy"
+  path   = "/"
+
+  
+  policy = file("grafana-policy.json")
+
+}
+
 # 2 - create role 
+
+resource "aws_iam_role" "grafana_role" {
+  name = "grafana-role-asume-policy"
+  assume_role_policy = file("grafana-role-asume-policy.json")
+}
 
 # 3 - create policy to role attachment 
 
+resource "aws_iam_role_policy_attachment" "attach_grafana_policy" {
+  role = aws_iam_role.grafana_role.name
+  policy_arn = aws_iam_policy.grafana.arn
+}
+
 # 4 - create instance profile 
+
+resource "aws_iam_instance_profile" "grafana_profile" {
+  name = "grafana-instance-profile"
+  role = aws_iam_role.grafana_role.name
+}
